@@ -1,13 +1,17 @@
 package agents;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
 import jade.core.Agent;
+import jade.core.Runtime;
+import jade.core.Profile;
+import jade.core.ProfileImpl;
+import jade.wrapper.AgentController;
+import jade.wrapper.ContainerController;
+import jade.wrapper.StaleProxyException;
 
 @SuppressWarnings("serial")
 public class StartAgent extends Agent {
@@ -42,28 +46,28 @@ public class StartAgent extends Agent {
 //	    }
 //		---------------------------------------
 //	}
-	
-	Map<String, Double> characteristicFunction = new HashMap<String, Double>();
-	
-	public double calculateCoallitionValue(double agentValue, double coallitionValue)
-	{
-		return -1;
-	}
-	
-	public double coallitionValue(int agent, int[] coallition)
-	{
-		String query = Arrays.toString(coallition).replace(", ", "").replace("]","").substring(1) + Integer.toString(agent);
-		if (characteristicFunction.containsKey(query))
-			return characteristicFunction.get(query);
-		else
-		{
-			double v = 0;
-			
-			characteristicFunction.put(query, v);
-		}
-		return -1;
-		
-	}
+//	
+//	Map<String, Double> characteristicFunction = new HashMap<String, Double>();
+//	
+//	public double calculateCoallitionValue(double agentValue, double coallitionValue)
+//	{
+//		return -1;
+//	}
+//	
+//	public double coallitionValue(int agent, int[] coallition)
+//	{
+//		String query = Arrays.toString(coallition).replace(", ", "").replace("]","").substring(1) + Integer.toString(agent);
+//		if (characteristicFunction.containsKey(query))
+//			return characteristicFunction.get(query);
+//		else
+//		{
+//			double v = 0;
+//			
+//			characteristicFunction.put(query, v);
+//		}
+//		return -1;
+//		
+//	}
 	
 	private double[] initialValues(int n, double v)
 	{
@@ -84,7 +88,7 @@ public class StartAgent extends Agent {
 		x[n-1] = temp - (temp - v);
 		sum += x[n-1];
 		
-		System.out.printf("v[%d]: %.2f | x[%d]: %.2f\n", n-1, v, n-1, x[n-1]);
+		System.out.printf("v[%d]: %.2f | x[%d]: %.2f\n", n-1, v-x[n-1], n-1, x[n-1]);
 		System.out.printf("Total: " + sum);
 		
 		return x;
@@ -100,8 +104,21 @@ public class StartAgent extends Agent {
 			double value = 100;
 			//caracteristicFunction(agents,value);
 			double a[] = initialValues(agents, value);
-			coallitionValue(3, new int[] {1,2});
+//			Criando variaveis necessarias a criacao de um novo agente (em um novo container)
+			Runtime rt = Runtime.instance();
+			Profile p = new ProfileImpl();
+			ContainerController agentContainer = rt.createAgentContainer(p);			
+//			Criando agentes
+			for (int i = 0; i < agents; i++)
+			{
+				try {
+					AgentController ac = agentContainer.createNewAgent("CoalitionAgent"+(i+1), "agents.CoalitionAgent", new Object[] { Double.valueOf(a[i]), agents });
+					ac.start();
+				} catch (StaleProxyException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}			
 		}
-	}
-	
+	}	
 }
