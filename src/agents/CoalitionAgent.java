@@ -15,36 +15,51 @@ public class CoalitionAgent extends Agent {
 	DFAgentDescription dfd;
 	ServiceDescription sd;
 	
-	ArrayList<CoalitionAgent> coalition;
+	//ArrayList<CoalitionAgent> coalition;
 	ArrayList<String> coalitions;
 	double coalitionValue;
-	int agents;
+	int agents, coalitionIndex,number;
+	StartAgent manager;
 	
-	protected String coalitionMembers()
+//	public CoalitionAgent()
+//	{
+//		manager = null;
+//		agents = 0;
+//		coalitionValue = 0;
+//		coalitionIndex = 0;
+//		number = Integer.valueOf(getLocalName().substring(getLocalName().length()-1));
+//		coalitions = null;
+////		coalition = null;
+//	}
+	
+//	protected String coalitionMembers()
+//	{
+//		String names = "";
+//		for (int i = 0; i < coalition.size(); i++)
+//			names += coalition.get(i).getLocalName() + " ";
+//		return names;
+//	}
+	
+	public void updateCoalitions(String coalition1, String coalition2)
 	{
-		String names = "";
-		for (int i = 0; i < coalition.size(); i++)
-			names += coalition.get(i).getLocalName() + " ";
-		return names;
+		coalitions.remove(coalition1);
+		coalitions.remove(coalition2);
+		coalitions.add(coalition1+coalition2);
+		for (int i = 0; i < coalitions.size(); i++)
+			if (coalitions.get(i).contains(String.valueOf(number)))
+			{
+				coalitionIndex = i;
+				break;
+			}
 	}
-	
-	protected void setup()
+		
+	public void register(String serviceName)
 	{
-		coalitions = new ArrayList<String>();
-		coalition = new ArrayList<CoalitionAgent>();
-		coalition.add(this);
-		coalitionValue = Double.parseDouble(getArguments()[0].toString());
-		
-		agents = Integer.parseInt(getArguments()[1].toString());
-		for (int i = 0; i < agents; i++)
-			coalitions.add(String.valueOf(i+1));
-		
 		dfd = new DFAgentDescription();
 	    sd = new ServiceDescription();
 		dfd.setName(getAID());
-		sd.setType("coalition");
-		String temp = this.getLocalName();
-		sd.setName(temp.substring(temp.length()-1));
+		sd.setType("coalition");		
+		sd.setName(serviceName+serviceName);
 		dfd.addServices(sd);		
 		try {  
 	        DFService.register(this, dfd );  
@@ -52,9 +67,36 @@ public class CoalitionAgent extends Agent {
 	    catch (FIPAException fe) { 
 	    	fe.printStackTrace(); 
     	}
+	}
+	
+	public void deRegister()
+	{
+		try {  
+	        DFService.deregister(this);  
+	    }
+	    catch (FIPAException fe) { 
+	    	fe.printStackTrace(); 
+    	}
+	}
+	
+	protected void setup()
+	{
+		coalitions = new ArrayList<String>();
+		number = Integer.valueOf(getLocalName().substring(getLocalName().length()-1));
+		coalitionValue = Double.parseDouble(getArguments()[0].toString());
 		
-		//System.out.println("Agent: " + this.getLocalName() + " | Coalition Value: " + coalitionValue + " | Coalition: " + coalitionMembers());
-		//System.out.println("Service Name: " + temp + "(" + temp.substring(temp.length()-1) + ")");		
+		agents = Integer.parseInt(getArguments()[1].toString());
+		for (int i = 0; i < agents; i++)
+		{
+			if ((i+1) == number) 
+				coalitionIndex = i;
+			coalitions.add(String.valueOf(i+1));
+		}
+		
+		manager = (StartAgent) getArguments()[2];
+		
+		register(String.valueOf(number));
+		
 		this.addBehaviour(new CoalitionBehaviour(this));
 	}
 		
@@ -65,12 +107,25 @@ public class CoalitionAgent extends Agent {
 	public int getAgents() {
 		return agents;
 	}
+	
+	public void setCoalitionValue(double coalitionValue) {
+		this.coalitionValue = coalitionValue;
+	}
+
+	public StartAgent getManager() {
+		return manager;
+	}
+
+	public String getCoalition()
+	{
+		return this.coalitions.get(coalitionIndex);
+	}
 
 	public String getCoalition(int index)
 	{
 		return this.coalitions.get(index);
 	}
-	
+
 	public int getCoalitions()
 	{
 		return this.coalitions.size();
@@ -79,6 +134,11 @@ public class CoalitionAgent extends Agent {
 	public double getCoalitionValue()
 	{
 		return this.coalitionValue;
+	}
+	
+	public int getNumber()
+	{
+		return number;
 	}
 	
 	protected void takeDown() 
