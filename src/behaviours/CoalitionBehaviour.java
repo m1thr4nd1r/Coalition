@@ -1,8 +1,7 @@
 package behaviours;
 
-import java.util.Random;
-
 import agents.CoalitionAgent;
+import jade.core.AID;
 import jade.core.behaviours.SimpleBehaviour;
 import jade.domain.DFService;
 import jade.domain.FIPAException;
@@ -14,14 +13,12 @@ import jade.lang.acl.ACLMessage;
 @SuppressWarnings("serial")
 public class CoalitionBehaviour extends SimpleBehaviour {
 
-	private boolean done;
+	private boolean done,start;
 	private double newValue;
-	private String newCoalition;
 	private int accepted, anwsers;
-	private String target;
 	private CoalitionAgent agent;
 	private ACLMessage msg, reply;
-	private Random random;
+	private AID manager;
 	private DFAgentDescription[] result;
 	private DFAgentDescription dfd;
 	private ServiceDescription sd;
@@ -29,18 +26,38 @@ public class CoalitionBehaviour extends SimpleBehaviour {
 	public CoalitionBehaviour(CoalitionAgent coalitionAgent) {
 		this.myAgent = coalitionAgent;
 		done = false;
-		target = "";
 		accepted = -1;
 		anwsers = -1;
 		this.agent = coalitionAgent;
 		msg = null;
 		reply = null;
 		newValue = 0;
-		newCoalition = "";
-		random = new Random();
+		manager = searchManager();
+		start = true;
 	}
 	
-	public DFAgentDescription[] searchAll()
+	public AID searchManager()
+	{
+		dfd = new DFAgentDescription();
+	    sd = new ServiceDescription();
+	    sd.setType("manager");
+	    dfd.addServices(sd);
+		
+		DFAgentDescription[] result = null;
+		SearchConstraints ALL = new SearchConstraints();
+        ALL.setMaxResults(new Long(-1));
+        try
+        {	
+        	result = DFService.search(agent, dfd, ALL);
+        }
+        catch (FIPAException fe) {
+        	fe.printStackTrace(); 
+    	}
+        
+        return result[0].getName();
+	}
+	
+	public DFAgentDescription[] search()
 	{
 		dfd = new DFAgentDescription();
 	    sd = new ServiceDescription();
@@ -56,34 +73,8 @@ public class CoalitionBehaviour extends SimpleBehaviour {
             this.anwsers = result.length;
             this.accepted = result.length;
         	
-            System.out.println(myAgent.getLocalName() + " found: " + result.length + "(" + result[0].getName().getLocalName() + ")");
-           
-        }
-        catch (FIPAException fe) {
-        	fe.printStackTrace(); 
-    	}
-        
-        return result;
-	}
-	
-	public DFAgentDescription[] search()
-	{
-		dfd = new DFAgentDescription();
-	    sd = new ServiceDescription();
-	    sd.setName(target);
-	    dfd.addServices(sd);
-		
-		DFAgentDescription[] result = null;
-		SearchConstraints ALL = new SearchConstraints();
-        ALL.setMaxResults(new Long(-1));
-        try
-        {	
-        	result = DFService.search(agent, dfd, ALL);
-            this.anwsers = result.length;
-            this.accepted = result.length;
-        	
-            System.out.println(myAgent.getLocalName() + " found: " + result.length + "(" + result[0].getName().getLocalName() + ")");
-           
+            if (agent.isDebugBuild())
+            	System.out.println(myAgent.getLocalName() + " found: " + result.length);
         }
         catch (FIPAException fe) {
         	fe.printStackTrace(); 
@@ -95,102 +86,87 @@ public class CoalitionBehaviour extends SimpleBehaviour {
 	@Override
 	public void action() 
 	{
-		msg = myAgent.receive();
-		
-		while (msg != null && msg.getConversationId() != null)
+		if (start)
 		{
-			if (msg.getConversationId().equals("Done"))
-				this.done = true;
-			else if (msg.getConversationId().equals("Turn"))
+			msg = new ACLMessage(0);
+			msg.setConversationId("Start");
+			msg.addReceiver(manager);
+			myAgent.send(msg);
+			start = false;
+		}
+		else
+		{
+			msg = myAgent.receive();
+			
+			while (msg != null && msg.getConversationId() != null)
 			{
-				System.out.println(myAgent.getLocalName() + " it's my turn");
-				reply = new ACLMessage(0);
-				
-				String temp = String.valueOf(nameIndex(this.myAgent.getLocalName()));
-	            int receiver;
-	            do {
-	            	receiver = random.nextInt(agent.getCoalitions());
-	            	target = agent.getCoalition(receiver);
-	            } while (target.contains(temp));
-	  		    
-	            System.out.println(myAgent.getLocalName() + " target: " + target);            
-	    	    
-	            result = search();
-	    	    
-	            for (int i=0; i<result.length; i++)
-	            	reply.addReceiver(result[i].getName());
-				
-		        reply.setConversationId("Query");
-		        reply.setContent(Double.toString(agent.getCoalitionValue()));
-		        myAgent.send(reply);
-			}
-			else if (msg.getConversationId().equals("Query"))
-			{
-				reply = msg.createReply();
-				
-				newValue = newCoalitionValue(Double.parseDouble(msg.getContent()));
-				if (newValue > this.agent.getCoalitionValue())
+				if (msg.getConversationId().equals("Done"))
+					this.done = true;
+				else if (msg.getConversationId().equals("Coalition"))
 				{
-					reply.setConversationId("Accepted");
-					reply.setContent(Double.toString(newValue));
+					this.agent.deregister();
+					this.agent.register("coalition");
 				}
-				else
-					reply.setConversationId("Refused");
-					
-				this.myAgent.send(reply);
-			}
-			else if (msg.getConversationId().equals("Accepted") || msg.getConversationId().equals("Refused"))
-			{
-				anwsers--;
-				System.out.println(msg.getSender().getLocalName() + " - " + msg.getConversationId() + " - me(" + myAgent.getLocalName() + ")");
-				if (msg.getConversationId().equals("Accepted"))
+				else if (msg.getConversationId().equals("Turn"))
 				{
-					accepted--;		
-					newCoalition += nameIndex(msg.getSender().getLocalName());
+					if (agent.isDebugBuild())
+						System.out.println(myAgent.getLocalName() + " it's my turn");
+					reply = new ACLMessage(0);
 					
-					if (anwsers == 0)
-					{												
-						if (accepted == 0)
-						{
-							this.agent.deRegister();
+					result = search();
+		    	    
+		            for (int i=0; i<result.length; i++)
+		            	reply.addReceiver(result[i].getName());
+					
+			        reply.setConversationId("Query");
+			        reply.setContent(Double.toString(agent.getCoalitionValue()));
+			        myAgent.send(reply);
+				}
+				else if (msg.getConversationId().equals("Query"))
+				{
+					reply = msg.createReply();
+					
+					newValue = newCoalitionValue(Double.parseDouble(msg.getContent()));
+					if (newValue > this.agent.getCoalitionValue())
+					{
+						reply.setConversationId("Accepted");
+						reply.setContent(Double.toString(newValue));
+					}
+					else
+						reply.setConversationId("Refused");
+						
+					this.myAgent.send(reply);
+				}
+				else if (msg.getConversationId().equals("Accepted") || msg.getConversationId().equals("Refused"))
+				{
+					anwsers--;
+					if (agent.isDebugBuild())
+						System.out.println(msg.getSender().getLocalName() + " - " + msg.getConversationId() + " - me(" + myAgent.getLocalName() + ")");
+					if (msg.getConversationId().equals("Accepted"))
+					{
+						accepted--;		
+						if (anwsers == 0)
+						{												
+							if (accepted == 0)
+							{
+								agent.deregister();
+								if (agent.isDebugBuild())
+									System.out.println(this.myAgent.getLocalName() + " joins the coalition!");
+								agent.register("coalition");							
+							}
 							
 							reply = new ACLMessage(0);
-							result = searchAll();
-							for (int i=0; i<result.length; i++)
-				            	reply.addReceiver(result[i].getName());
-							reply.addReceiver(agent.getManager().getAID());
-							reply.setConversationId("Update");
-							reply.setContent(agent.getCoalition() + "|" + newCoalition + "|" + msg.getContent());
+							reply.addReceiver(manager);
+							reply.setConversationId("Turn");
+							reply.setContent(String.valueOf(accepted));
 							
-							System.out.println(this.myAgent.getLocalName() + " Joins coalition " + target);
-							this.agent.register(target);							
+							myAgent.send(reply);
 						}
-						
-//						reply = new ACLMessage(0);
-//						reply.addReceiver(agent.getManager().getAID());
-//						reply.setConversationId("Turn");
-//						reply.setContent("");
-						
-						myAgent.send(reply);
 					}
 				}
+				msg = myAgent.receive();
 			}
-			else if (msg.getConversationId().equals("Update"))
-			{
-				String[] contents = msg.getContent().split("|");
-				
-				if (contents[1].contains(String.valueOf(agent.getNumber())) || contents[0].contains(String.valueOf(agent.getNumber())))
-					agent.setCoalitionValue(Double.valueOf(contents[2]));
-				
-				agent.updateCoalitions(contents[0],contents[1]);
-			}
-			msg = myAgent.receive();
 		}
-	}
-
-	public int nameIndex(String name)
-	{
-		return Integer.valueOf(name.substring(name.length()-1));
 	}
 	
 	public double newCoalitionValue(double a)
