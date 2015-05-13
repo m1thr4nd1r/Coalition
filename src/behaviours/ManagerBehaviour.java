@@ -15,17 +15,16 @@ import jade.lang.acl.ACLMessage;
 public class ManagerBehaviour extends SimpleBehaviour
 {
 	Random random;
-	int agents;
-	boolean done;
+	int agents, done;
 	ManagerAgent agent;
 	int turn,start;
 	private ACLMessage msg, reply;
 	
 	public ManagerBehaviour(ManagerAgent agent, int agents)
 	{
-		this.myAgent = agent;
+		myAgent = agent;
 		this.agent = agent;
-		done = false;
+		done = agents;
 		random = new Random();
 		this.agents = agents;
 		turn = 0;
@@ -46,7 +45,7 @@ public class ManagerBehaviour extends SimpleBehaviour
         ALL.setMaxResults(new Long(-1));
         
         try {	
-        	result = DFService.search(this.myAgent, dfd, ALL);
+        	result = DFService.search(myAgent, dfd, ALL);
         }
         catch (FIPAException fe) {
         	fe.printStackTrace(); 
@@ -67,7 +66,7 @@ public class ManagerBehaviour extends SimpleBehaviour
         ALL.setMaxResults(new Long(-1));
         
         try {	
-        	result = DFService.search(this.myAgent, dfd, ALL);
+        	result = DFService.search(myAgent, dfd, ALL);
         }
         catch (FIPAException fe) {
         	fe.printStackTrace(); 
@@ -94,7 +93,8 @@ public class ManagerBehaviour extends SimpleBehaviour
 					for (int i = 0; i < results.length; i++)
 						reply.addReceiver(results[i].getName());
 					reply.setConversationId("Done");
-					done = true;
+					//done = true;
+					//agent.setCoalitionValue(Double.valueOf(msg.getContent()));
 					if (agent.isDebugBuild())
 						System.out.println("Coalition fully formed.");
 				}
@@ -107,7 +107,7 @@ public class ManagerBehaviour extends SimpleBehaviour
 						System.out.println(turn + " it's your turn(" + results[turn].getName().getLocalName() +")");					
 				}
 								
-				this.myAgent.send(reply);
+				myAgent.send(reply);
 			}
 			else if (msg.getConversationId().equals("Start"))
 			{
@@ -126,20 +126,37 @@ public class ManagerBehaviour extends SimpleBehaviour
 					if (agent.isDebugBuild())
 						System.out.println(results[chosen].getName().getLocalName() + " begins in the coalition.");
 				}
-			}	
-			
+			}
+			else if (msg.getConversationId().equals("Done"))
+			{
+				done--;
+				int i = msg.getContent().indexOf('|');
+				agent.setB(Integer.valueOf(msg.getSender().getLocalName().substring(msg.getSender().getLocalName().length()-1))-1, Double.valueOf(msg.getContent().substring(0, i)));
+				agent.setCoalitionValue(Double.valueOf(msg.getContent().substring(i+1)));
+			}
+						
 			msg = myAgent.receive();
 		}
 	}
 
 	@Override
 	public boolean done() {
-		return done;
+		return done==0;
 	}
 	
 	public int onEnd()
 	{
-		myAgent.doDelete();
+		if (agent.isDebugBuild())
+		{
+			agent.writeToFile("");
+			//System.out.println("Done: " + String.valueOf(agent.getExecutionAmount()));
+			System.out.println("Run #" + String.valueOf(agent.getExecutionAmount()) + " ended.");
+		}
+		agent.decExecutionAmount();
+		if (agent.getExecutionAmount() > 0)
+			agent.start(false);
+		else
+			myAgent.doDelete();
 		return 0;
 	}
 }
