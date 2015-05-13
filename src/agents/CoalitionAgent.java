@@ -12,8 +12,8 @@ public class CoalitionAgent extends Agent {
 	
 	DFAgentDescription dfd;
 	ServiceDescription sd;
-	double coalitionValue;
-	int agents, number;
+	double coalitionValue, agentValue;
+	int agents, number, faulty;
 	boolean debug;
 		
 	public void register(String serviceType)
@@ -46,18 +46,29 @@ public class CoalitionAgent extends Agent {
 	{
 		number = Integer.valueOf(getLocalName().substring(getLocalName().length()-1));
 		coalitionValue = Double.parseDouble(getArguments()[0].toString());
+		agentValue = coalitionValue;
 		register("agents");
-		debug = (boolean) getArguments()[1];
-		this.addBehaviour(new CoalitionBehaviour(this));
+		faulty = Integer.valueOf(getArguments()[1].toString());
+		debug = (boolean) getArguments()[2];
+		addBehaviour(new CoalitionBehaviour(this));
 	}
 	
 	public void setCoalitionValue(double coalitionValue) {
 		this.coalitionValue = coalitionValue;
 	}
 	
+	public void setAgentValue(double aV) {
+		agentValue = aV;
+	}
+	
 	public double getCoalitionValue()
 	{
-		return this.coalitionValue;
+		return coalitionValue;
+	}
+	
+	public double getAgentValue()
+	{
+		return agentValue;
 	}
 	
 	public boolean isDebugBuild()
