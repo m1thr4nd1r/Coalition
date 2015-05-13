@@ -24,11 +24,11 @@ public class CoalitionBehaviour extends SimpleBehaviour {
 	private ServiceDescription sd;
 	
 	public CoalitionBehaviour(CoalitionAgent coalitionAgent) {
-		this.myAgent = coalitionAgent;
+		myAgent = coalitionAgent;
 		done = false;
 		accepted = -1;
 		anwsers = -1;
-		this.agent = coalitionAgent;
+		agent = coalitionAgent;
 		msg = null;
 		reply = null;
 		newValue = 0;
@@ -70,8 +70,8 @@ public class CoalitionBehaviour extends SimpleBehaviour {
         try
         {	
         	result = DFService.search(agent, dfd, ALL);
-            this.anwsers = result.length;
-            this.accepted = result.length;
+            anwsers = result.length;
+            accepted = result.length;
         	
             if (agent.isDebugBuild())
             	System.out.println(myAgent.getLocalName() + " found: " + result.length);
@@ -79,6 +79,10 @@ public class CoalitionBehaviour extends SimpleBehaviour {
         catch (FIPAException fe) {
         	fe.printStackTrace(); 
     	}
+        
+        if (agent.isDebugBuild())
+        	for (int i = 0; i < result.length; i++)
+        		System.out.println("(" + result[i].getName().getLocalName() + ")");
         
         return result;
 	}
@@ -101,11 +105,16 @@ public class CoalitionBehaviour extends SimpleBehaviour {
 			while (msg != null && msg.getConversationId() != null)
 			{
 				if (msg.getConversationId().equals("Done"))
-					this.done = true;
+				{
+					done = true;
+					reply = msg.createReply();
+					reply.setContent(String.valueOf(agent.getAgentValue()) + "|" + String.valueOf(agent.getCoalitionValue()));
+					myAgent.send(reply);
+				}
 				else if (msg.getConversationId().equals("Coalition"))
 				{
-					this.agent.deregister();
-					this.agent.register("coalition");
+					agent.deregister();
+					agent.register("coalition");
 				}
 				else if (msg.getConversationId().equals("Turn"))
 				{
@@ -113,7 +122,10 @@ public class CoalitionBehaviour extends SimpleBehaviour {
 						System.out.println(myAgent.getLocalName() + " it's my turn");
 					reply = new ACLMessage(0);
 					
-					result = search();
+					do
+					{
+						result = search();
+					}while (result.length == 0);
 		    	    
 		            for (int i=0; i<result.length; i++)
 		            	reply.addReceiver(result[i].getName());
@@ -127,7 +139,7 @@ public class CoalitionBehaviour extends SimpleBehaviour {
 					reply = msg.createReply();
 					
 					newValue = newCoalitionValue(Double.parseDouble(msg.getContent()));
-					if (newValue > this.agent.getCoalitionValue())
+					if (newValue > agent.getCoalitionValue())
 					{
 						reply.setConversationId("Accepted");
 						reply.setContent(Double.toString(newValue));
@@ -135,13 +147,21 @@ public class CoalitionBehaviour extends SimpleBehaviour {
 					else
 						reply.setConversationId("Refused");
 						
-					this.myAgent.send(reply);
+					myAgent.send(reply);
+				}
+				else if (msg.getConversationId().equals("Update"))
+				{
+					agent.setCoalitionValue(Double.valueOf(msg.getContent()));
+					agent.setAgentValue(agent.getAgentValue() + Double.valueOf(msg.getContent()) / search().length);
+					if (agent.isDebugBuild())
+						System.out.println("New Value: " + String.valueOf(agent.getAgentValue()) + " | " + String.valueOf(agent.getCoalitionValue()) + " | " + String.valueOf(agent.getNumber()));
 				}
 				else if (msg.getConversationId().equals("Accepted") || msg.getConversationId().equals("Refused"))
 				{
 					anwsers--;
 					if (agent.isDebugBuild())
 						System.out.println(msg.getSender().getLocalName() + " - " + msg.getConversationId() + " - me(" + myAgent.getLocalName() + ")");
+					
 					if (msg.getConversationId().equals("Accepted"))
 					{
 						accepted--;		
@@ -149,16 +169,23 @@ public class CoalitionBehaviour extends SimpleBehaviour {
 						{												
 							if (accepted == 0)
 							{
+								result = search();
+								for (int i = 0; i < result.length; i++)
+									msg.addReceiver(result[i].getName());
+								msg.setConversationId("Update");
+								
 								agent.deregister();
 								if (agent.isDebugBuild())
-									System.out.println(this.myAgent.getLocalName() + " joins the coalition!");
-								agent.register("coalition");							
+									System.out.println(myAgent.getLocalName() + " joins the coalition!");
+								agent.register("coalition");
+								
+								myAgent.send(msg);								
 							}
 							
 							reply = new ACLMessage(0);
 							reply.addReceiver(manager);
 							reply.setConversationId("Turn");
-							reply.setContent(String.valueOf(accepted));
+							reply.setContent("Turn");
 							
 							myAgent.send(reply);
 						}
@@ -171,7 +198,7 @@ public class CoalitionBehaviour extends SimpleBehaviour {
 	
 	public double newCoalitionValue(double a)
 	{
-		return this.agent.getCoalitionValue() + a;
+		return agent.getCoalitionValue() + a;
 	}
 	
 	@Override
