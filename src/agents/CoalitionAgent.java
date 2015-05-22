@@ -12,8 +12,8 @@ public class CoalitionAgent extends Agent {
 	
 	DFAgentDescription dfd;
 	ServiceDescription sd;
-	double coalitionValue, agentValue;
-	int agents, number, faulty;
+	double initialCV, coalitionValue, initialAV, agentValue;
+	int agents, number, faulty, executions;
 	boolean debug;
 		
 	public void register(String serviceType)
@@ -42,15 +42,24 @@ public class CoalitionAgent extends Agent {
     	}
 	}
 	
+	public void start()
+	{
+		coalitionValue = initialCV;
+		agentValue = initialAV;
+		addBehaviour(new CoalitionBehaviour(this));
+	}
+	
 	protected void setup()
 	{
 		number = Integer.valueOf(getLocalName().substring(getLocalName().length()-1));
-		coalitionValue = Double.parseDouble(getArguments()[0].toString());
-		agentValue = coalitionValue;
+		initialCV = Double.parseDouble(getArguments()[0].toString());
+		initialAV = initialCV;
 		register("agents");
-		faulty = Integer.valueOf(getArguments()[1].toString());
+//		register("all");
+//		faulty = Integer.valueOf(getArguments()[1].toString());
+		executions = Integer.valueOf(getArguments()[1].toString());
 		debug = (boolean) getArguments()[2];
-		addBehaviour(new CoalitionBehaviour(this));
+		start();		
 	}
 	
 	public void setCoalitionValue(double coalitionValue) {
@@ -61,11 +70,27 @@ public class CoalitionAgent extends Agent {
 		agentValue = aV;
 	}
 	
+	public int getFaulty() {
+		return faulty;
+	}
+
+	public void setFaulty(int faulty) {
+		this.faulty = faulty;
+	}
+
 	public double getCoalitionValue()
 	{
 		return coalitionValue;
 	}
 	
+	public int getExecutions() {
+		return executions;
+	}
+	
+	public void decExecutions() {
+		executions--;
+	}
+
 	public double getAgentValue()
 	{
 		return agentValue;
