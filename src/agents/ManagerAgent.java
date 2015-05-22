@@ -24,14 +24,15 @@ public class ManagerAgent extends Agent {
 	private boolean debug;
 	private int agents, executionAmount, faulty[], faultyAmount;
 	private double value, a[], coalitionValue, b[];
+	private String coalition;
 	private Random rand;
 	private PrintWriter writer;
 	
 	public void beginWriting()
 	{
-		String txt = "coalitionValue;";
+		String txt = "coalition;coalitionValue;";
 		for (int i = 0; i < agents; i++)
-			txt += "agent"+(i+1)+";";		
+			txt += "agent"+(i+1)+";" + "agent"+(i+1)+";";		
 		txt += "faultyAgent(s);\n";
 		
 		writeToFile(txt);
@@ -41,9 +42,13 @@ public class ManagerAgent extends Agent {
 	{
 		if (txt == "")
 		{
-			txt = String.valueOf(coalitionValue).replace('.',',') + ";";
+			txt = coalition + ";";
+			txt += String.valueOf(coalitionValue).replace('.',',') + ";";
 			for (int i = 0; i < agents; i++)
+			{
+				txt += String.valueOf(a[i]).replace('.', ',')+";";
 				txt += String.valueOf(b[i]).replace('.', ',')+";";
+			}
 			for (int i = 0; i < agents; i++)
 				if (faulty[i] > 0)
 					txt += String.valueOf(i+1) + " ";
@@ -114,26 +119,9 @@ public class ManagerAgent extends Agent {
 	public void start(boolean trusty)
 	{
 		coalitionValue = 0;
-		faulty = new int[agents];
-		selectFaulty(trusty);
-		selectInitialValues(value);
-		b = a;
-				
-//		Criando variaveis necessarias a criacao de um novo agente (em um novo container)
-		Runtime rt = Runtime.instance();
-		Profile p = new ProfileImpl();
-		ContainerController agentContainer = rt.createAgentContainer(p);			
-//		Criando agentes
 		for (int i = 0; i < agents; i++)
-		{
-			try {
-				AgentController ac = agentContainer.createNewAgent("CoalitionAgent"+(i+1), "agents.CoalitionAgent", new Object[] { Double.valueOf(a[i]), String.valueOf(faulty[i]), debug });
-				ac.start();
-			} catch (StaleProxyException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}		
+			faulty[i] = 0;
+		selectFaulty(trusty);
 		addBehaviour(new ManagerBehaviour(this,agents));
 	}
 	
@@ -142,15 +130,19 @@ public class ManagerAgent extends Agent {
 		Object[] args = getArguments();
 		if (args != null && args.length > 3)
 		{
-//			Numero de Agentes
+//			Numero de Agentes,valor (a ser distribuido),qntExecuções,qntFalhas,isDebug(opcional)
 			agents = Integer.parseInt((String) args[0]);
 			value = Double.valueOf((String) args[1]);			
 			executionAmount = Integer.parseInt((String) args[2]) + 1;
 			faultyAmount = Integer.parseInt((String) args[3]);
 			debug = (args.length > 4 && (args[4].toString().charAt(0) == 't' || args[4].toString().charAt(0) == 'T'))? true : false;
+			faulty = new int[agents];
 			rand = new Random();
 			register();
 			
+			selectInitialValues(value);
+			b = a.clone();
+						
 			try {
 				writer = new PrintWriter("Coalition.csv", "UTF-8");				
 			} catch (FileNotFoundException | UnsupportedEncodingException e) {
@@ -158,9 +150,37 @@ public class ManagerAgent extends Agent {
 				e.printStackTrace();
 			}	
 			
+//			Criando variaveis necessarias a criacao de um novo agente (em um novo container)
+			Runtime rt = Runtime.instance();
+			Profile p = new ProfileImpl();
+			ContainerController agentContainer = rt.createAgentContainer(p);			
+//			Criando agentes
+			for (int i = 0; i < agents; i++)
+			{
+				try {
+					AgentController ac = agentContainer.createNewAgent("CoalitionAgent"+(i+1), "agents.CoalitionAgent", new Object[] { Double.valueOf(a[i]), executionAmount, debug });
+					ac.start();
+				} catch (StaleProxyException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}		
+			
 			beginWriting();
 			start(true);
 		}
+	}
+
+	public void setCoalition(String coalition) {
+		this.coalition = coalition;
+	}
+
+	public int[] getFaulty() {
+		return faulty;
+	}
+	
+	public int getFaulty(int index) {
+		return faulty[index];
 	}
 
 	public void setB(int i, double v) {
