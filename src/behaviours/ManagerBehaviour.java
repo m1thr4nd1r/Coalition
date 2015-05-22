@@ -16,8 +16,9 @@ public class ManagerBehaviour extends SimpleBehaviour
 {
 	Random random;
 	int agents, done;
+	String temp;
 	ManagerAgent agent;
-	int turn,start;
+	int turn,start, chosen;
 	private ACLMessage msg, reply;
 	
 	public ManagerBehaviour(ManagerAgent agent, int agents)
@@ -28,9 +29,28 @@ public class ManagerBehaviour extends SimpleBehaviour
 		random = new Random();
 		this.agents = agents;
 		turn = 0;
-		msg = null;
+		msg = new ACLMessage(0);
+		temp = "";
 		reply = null;
 		start = agents;
+		
+		DFAgentDescription[] results;
+		do
+		{
+			results = search();
+		} while (results.length != agents);
+		
+		if (agent.isDebugBuild())
+			System.out.println("Manager Found: " + results.length);
+		
+		for (int i = 0; i < results.length; i++)
+		{
+			msg.clearAllReceiver();
+			msg.addReceiver(results[i].getName());
+			msg.setConversationId("Start");
+			msg.setContent(String.valueOf(agent.getFaulty(i)));
+			myAgent.send(msg);
+		}
 	}
 	
 	public DFAgentDescription[] getCoalition()
@@ -90,8 +110,13 @@ public class ManagerBehaviour extends SimpleBehaviour
 				if (results.length == 0)
 				{
 					results = getCoalition();
+					temp = "";
 					for (int i = 0; i < results.length; i++)
+					{
+						temp += results[i].getName().getLocalName().substring(results[i].getName().getLocalName().length()-1);
 						reply.addReceiver(results[i].getName());
+					}
+					agent.setCoalition(temp);
 					reply.setConversationId("Done");
 					//done = true;
 					//agent.setCoalitionValue(Double.valueOf(msg.getContent()));
@@ -100,7 +125,10 @@ public class ManagerBehaviour extends SimpleBehaviour
 				}
 				else
 				{
-					turn = random.nextInt(results.length);
+					do
+					{
+						turn = random.nextInt(results.length);
+					} while (turn == chosen);
 					reply.addReceiver(results[turn].getName());
 					reply.setConversationId("Turn");
 					if (agent.isDebugBuild())
@@ -119,7 +147,7 @@ public class ManagerBehaviour extends SimpleBehaviour
 					reply = new ACLMessage(0);
 					DFAgentDescription[] results = search();
 					Random r = new Random();			        
-			        int chosen = r.nextInt(results.length);
+			        chosen = r.nextInt(results.length);
 					reply.addReceiver(results[chosen].getName());
 					reply.setConversationId("Coalition");
 					myAgent.send(reply);
@@ -148,10 +176,11 @@ public class ManagerBehaviour extends SimpleBehaviour
 	{
 		if (agent.isDebugBuild())
 		{
-			agent.writeToFile("");
 			//System.out.println("Done: " + String.valueOf(agent.getExecutionAmount()));
-			System.out.println("Run #" + String.valueOf(agent.getExecutionAmount()) + " ended.");
+			System.out.println("Run #" + String.valueOf(agent.getExecutionAmount()) + " ended." + agent.getExecutionAmount());
 		}
+		
+		agent.writeToFile("");
 		agent.decExecutionAmount();
 		if (agent.getExecutionAmount() > 0)
 			agent.start(false);
