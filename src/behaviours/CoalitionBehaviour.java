@@ -90,21 +90,28 @@ public class CoalitionBehaviour extends SimpleBehaviour {
 	@Override
 	public void action() 
 	{
-		if (start)
-		{
-			msg = new ACLMessage(0);
-			msg.setConversationId("Start");
-			msg.addReceiver(manager);
-			myAgent.send(msg);
-			start = false;
-		}
-		else
+//		if (start)
+//		{
+//			msg = new ACLMessage(0);
+//			msg.setConversationId("Start");
+//			msg.addReceiver(manager);
+//			myAgent.send(msg);
+//			start = false;
+//		} else
+		if (true)
 		{
 			msg = myAgent.receive();
 			
 			while (msg != null && msg.getConversationId() != null)
 			{
-				if (msg.getConversationId().equals("Done"))
+				if (msg.getConversationId().equals("Start") && start)
+				{
+					agent.setFaulty(Integer.valueOf(msg.getContent()));
+					reply = msg.createReply();
+					start = false;
+					myAgent.send(reply);
+				}
+				else if (msg.getConversationId().equals("Done"))
 				{
 					done = true;
 					reply = msg.createReply();
@@ -152,7 +159,7 @@ public class CoalitionBehaviour extends SimpleBehaviour {
 				else if (msg.getConversationId().equals("Update"))
 				{
 					agent.setCoalitionValue(Double.valueOf(msg.getContent()));
-					agent.setAgentValue(agent.getAgentValue() + Double.valueOf(msg.getContent()) / search().length);
+//					agent.setAgentValue(agent.getAgentValue() + Double.valueOf(msg.getContent()) / search().length);
 					if (agent.isDebugBuild())
 						System.out.println("New Value: " + String.valueOf(agent.getAgentValue()) + " | " + String.valueOf(agent.getCoalitionValue()) + " | " + String.valueOf(agent.getNumber()));
 				}
@@ -170,6 +177,7 @@ public class CoalitionBehaviour extends SimpleBehaviour {
 							if (accepted == 0)
 							{
 								result = search();
+								agent.setAgentValue(agent.getAgentValue() + Double.valueOf(msg.getContent()) / (result.length+1));
 								for (int i = 0; i < result.length; i++)
 									msg.addReceiver(result[i].getName());
 								msg.setConversationId("Update");
@@ -208,7 +216,14 @@ public class CoalitionBehaviour extends SimpleBehaviour {
 	
 	public int onEnd()
 	{
-		myAgent.doDelete();
+		agent.decExecutions();
+		agent.deregister();
+		agent.register("agents");
+		
+		if (agent.getExecutions() > 0)
+			agent.start();
+		else
+			myAgent.doDelete();
 		return 0;
 	}
 }
