@@ -23,6 +23,7 @@ public class ManagerAgent extends Agent {
 
 	private boolean debug;
 	private int agents, executionAmount, faulty[], faultyAmount;
+	private long timeout;
 	private double value, a[], coalitionValue, b[];
 	private String coalition;
 	private Random rand;
@@ -32,7 +33,7 @@ public class ManagerAgent extends Agent {
 	{
 		String txt = "coalition;coalitionValue;";
 		for (int i = 0; i < agents; i++)
-			txt += "agent"+(i+1)+";" + "agent"+(i+1)+";";		
+			txt += "agent"+(i+1)+"-Begin;" + "agent"+(i+1)+"-End;";		
 		txt += "faultyAgent(s);\n";
 		
 		writeToFile(txt);
@@ -101,6 +102,9 @@ public class ManagerAgent extends Agent {
 	
 	private void selectFaulty(boolean trusty)
 	{
+		for (int i = 0; i < agents; i++)
+			faulty[i] = 0;
+		
 		if (!trusty)
 		{
 			int faultyleft = faultyAmount, chosen;
@@ -119,10 +123,12 @@ public class ManagerAgent extends Agent {
 	public void start(boolean trusty)
 	{
 		coalitionValue = 0;
-		for (int i = 0; i < agents; i++)
-			faulty[i] = 0;
 		selectFaulty(trusty);
-		addBehaviour(new ManagerBehaviour(this,agents));
+		
+		for (int i = 0; i < agents; i++)
+			System.out.print(faulty[i]);
+		System.out.println();
+		addBehaviour(new ManagerBehaviour(this,agents,trusty));
 	}
 	
 	protected void setup()
@@ -135,6 +141,7 @@ public class ManagerAgent extends Agent {
 			value = Double.valueOf((String) args[1]);			
 			executionAmount = Integer.parseInt((String) args[2]) + 1;
 			faultyAmount = Integer.parseInt((String) args[3]);
+			timeout = 100;
 			debug = (args.length > 4 && (args[4].toString().charAt(0) == 't' || args[4].toString().charAt(0) == 'T'))? true : false;
 			faulty = new int[agents];
 			rand = new Random();
@@ -171,8 +178,22 @@ public class ManagerAgent extends Agent {
 		}
 	}
 
+	public long getTimeOut()
+	{
+		return timeout;
+	}
+	
+	public String getNumber(String s)
+	{
+		return s.substring(s.length()-1);
+	}
+	
 	public void setCoalition(String coalition) {
 		this.coalition = coalition;
+	}
+
+	public int getFaultyAmount() {
+		return faultyAmount;
 	}
 
 	public int[] getFaulty() {
