@@ -46,6 +46,8 @@ public class CoalitionAgent extends Agent {
 	{
 		coalitionValue = initialCV;
 		agentValue = initialAV;
+		faulty = 0;
+		System.out.println(faulty);
 		addBehaviour(new CoalitionBehaviour(this));
 	}
 	
@@ -60,6 +62,17 @@ public class CoalitionAgent extends Agent {
 		executions = Integer.valueOf(getArguments()[1].toString());
 		debug = (boolean) getArguments()[2];
 		start();		
+	}
+		
+	public double newCoalitionValue(double a)
+	{
+		return coalitionValue + a;
+	}
+		
+	public void newAgentValue()
+	{
+		// agentValue + a;
+		agentValue *= 1.1;
 	}
 	
 	public void setCoalitionValue(double coalitionValue) {
