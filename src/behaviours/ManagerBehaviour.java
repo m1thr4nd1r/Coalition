@@ -14,14 +14,15 @@ import jade.lang.acl.ACLMessage;
 @SuppressWarnings("serial")
 public class ManagerBehaviour extends SimpleBehaviour
 {
-	Random random;
-	int agents, done;
-	String temp;
-	ManagerAgent agent;
-	int turn,start, chosen;
+	private Random random;
+	private String temp;
+	private ManagerAgent agent;
+	private long lastMessage;
+	private int turn,start, chosen,aux,agents,done;
+	private boolean hasFaulty;
 	private ACLMessage msg, reply;
 	
-	public ManagerBehaviour(ManagerAgent agent, int agents)
+	public ManagerBehaviour(ManagerAgent agent, int agents, boolean trusty)
 	{
 		myAgent = agent;
 		this.agent = agent;
@@ -31,8 +32,10 @@ public class ManagerBehaviour extends SimpleBehaviour
 		turn = 0;
 		msg = new ACLMessage(0);
 		temp = "";
+		aux = 0;
 		reply = null;
 		start = agents;
+		hasFaulty = !trusty;
 		
 		DFAgentDescription[] results;
 		do
@@ -48,9 +51,12 @@ public class ManagerBehaviour extends SimpleBehaviour
 			msg.clearAllReceiver();
 			msg.addReceiver(results[i].getName());
 			msg.setConversationId("Start");
-			msg.setContent(String.valueOf(agent.getFaulty(i)));
+			aux = Integer.valueOf(agent.getNumber(results[i].getName().getLocalName()));
+			msg.setContent(String.valueOf(agent.getFaulty(aux-1)));
 			myAgent.send(msg);
 		}
+		
+		lastMessage = System.currentTimeMillis();
 	}
 	
 	public DFAgentDescription[] getCoalition()
@@ -100,20 +106,34 @@ public class ManagerBehaviour extends SimpleBehaviour
 	{
 		msg = myAgent.receive();
 		
-		while (start == 0 || (msg != null && msg.getConversationId() != null))
+		while (/*(start == agent.getFaultyAmount() && (System.currentTimeMillis() - lastMessage) > agent.getTimeOut()) || */ (msg != null && msg.getConversationId() != null))
 		{
-			if (start == 0 || (msg.getConversationId().equals("Turn") && !msg.getContent().isEmpty()))
+			System.out.println("Time: " + String.valueOf(System.currentTimeMillis() - lastMessage));
+			lastMessage = System.currentTimeMillis();
+			
+			if (msg.getConversationId().equals("Turn"))
 			{
-				start = 1;
+				if (agent.isDebugBuild() && start != 0)
+					System.out.println("Agent " + agent.getNumber(msg.getSender().getLocalName()) + " turn ended.");
+				
 				reply = new ACLMessage(0);
-				DFAgentDescription[] results = search();				
-				if (results.length == 0)
+				DFAgentDescription[] results = search();	
+//				if (agent.isDebugBuild())
+//				{
+//					System.out.println("Manager found: " + String.valueOf(results.length) + " agents:");
+//					for (int i = 0; i < results.length; i++)
+//						System.out.println(results[i].getName().getLocalName());
+//				}
+				if (results.length == 0 || (hasFaulty && results.length == agent.getFaultyAmount()))
 				{
+					for (int i = 0; i < results.length; i++)
+						reply.addReceiver(results[i].getName());
+					
 					results = getCoalition();
 					temp = "";
 					for (int i = 0; i < results.length; i++)
 					{
-						temp += results[i].getName().getLocalName().substring(results[i].getName().getLocalName().length()-1);
+						temp += agent.getNumber(results[i].getName().getLocalName());
 						reply.addReceiver(results[i].getName());
 					}
 					agent.setCoalition(temp);
@@ -127,12 +147,19 @@ public class ManagerBehaviour extends SimpleBehaviour
 				{
 					do
 					{
-						turn = random.nextInt(results.length);
-					} while (turn == chosen);
-					reply.addReceiver(results[turn].getName());
+						aux = random.nextInt(results.length);
+						turn = Integer.valueOf(agent.getNumber(results[aux].getName().getLocalName()));
+					} while (turn == chosen || agent.getFaulty(turn-1) == 1);
+					
+					reply.addReceiver(results[aux].getName());
 					reply.setConversationId("Turn");
 					if (agent.isDebugBuild())
-						System.out.println(turn + " it's your turn(" + results[turn].getName().getLocalName() +")");					
+					{
+						System.out.println(aux + " it's your turn(" + results[aux].getName().getLocalName() +")[" + String.valueOf(agent.getFaulty(turn-1)) + "]");
+						for (int i = 0; i < agents; i++)
+							System.out.print(agent.getFaulty(i));
+						System.out.println();
+					}
 				}
 								
 				myAgent.send(reply);
@@ -142,24 +169,36 @@ public class ManagerBehaviour extends SimpleBehaviour
 				if (agent.isDebugBuild())
 					System.out.println(msg.getSender().getLocalName() + " started.");
 				start--;
-				if (start == 0)
+				
+				if (start == agent.getFaultyAmount())
 				{
+					start = 0;
 					reply = new ACLMessage(0);
 					DFAgentDescription[] results = search();
-					Random r = new Random();			        
-			        chosen = r.nextInt(results.length);
-					reply.addReceiver(results[chosen].getName());
+					
+					do
+					{
+						aux = random.nextInt(results.length);
+						chosen = Integer.valueOf(agent.getNumber(results[aux].getName().getLocalName()));
+					}while (agent.getFaulty(chosen-1) == 1);
+					
+					reply.addReceiver(results[aux].getName());
 					reply.setConversationId("Coalition");
 					myAgent.send(reply);
 					if (agent.isDebugBuild())
-						System.out.println(results[chosen].getName().getLocalName() + " begins in the coalition.");
+						System.out.println(results[aux].getName().getLocalName() + " begins in the coalition.");	
+					
+					msg.clearAllReceiver();
+					msg.addReceiver(myAgent.getAID());
+					msg.setConversationId("Turn");
+					myAgent.send(msg);
 				}
 			}
 			else if (msg.getConversationId().equals("Done"))
 			{
 				done--;
 				int i = msg.getContent().indexOf('|');
-				agent.setB(Integer.valueOf(msg.getSender().getLocalName().substring(msg.getSender().getLocalName().length()-1))-1, Double.valueOf(msg.getContent().substring(0, i)));
+				agent.setB(Integer.valueOf(agent.getNumber(msg.getSender().getLocalName()))-1, Double.valueOf(msg.getContent().substring(0, i)));
 				agent.setCoalitionValue(Double.valueOf(msg.getContent().substring(i+1)));
 			}
 						
@@ -169,16 +208,13 @@ public class ManagerBehaviour extends SimpleBehaviour
 
 	@Override
 	public boolean done() {
-		return done==0;
+		return done==0 || (hasFaulty && done == agent.getFaultyAmount());
 	}
 	
 	public int onEnd()
 	{
 		if (agent.isDebugBuild())
-		{
-			//System.out.println("Done: " + String.valueOf(agent.getExecutionAmount()));
-			System.out.println("Run #" + String.valueOf(agent.getExecutionAmount()) + " ended." + agent.getExecutionAmount());
-		}
+			System.out.println("Run #" + String.valueOf(agent.getExecutionAmount()) + " ended.");
 		
 		agent.writeToFile("");
 		agent.decExecutionAmount();
