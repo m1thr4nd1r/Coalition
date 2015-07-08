@@ -10,12 +10,28 @@ import jade.domain.FIPAAgentManagement.ServiceDescription;
 @SuppressWarnings("serial")
 public class CoalitionAgent extends Agent {
 	
-	DFAgentDescription dfd;
-	ServiceDescription sd;
-	double initialCV, coalitionValue, initialAV, agentValue;
-	int agents, number, faulty, executions;
-	boolean debug;
+	private DFAgentDescription dfd;
+	private ServiceDescription sd;
+	private double initialCV, coalitionValue, initialAV, agentValue;
+	private int number, faulty, executions;
+	private long timeout;
+	private boolean debug;
+	
+	protected void setup()
+	{
+//		Lendo variaveis do input
+		number = Integer.valueOf(getLocalName().substring(getLocalName().length()-1));
+		initialCV = Double.parseDouble(getArguments()[0].toString());
+		executions = Integer.valueOf(getArguments()[1].toString());
+		timeout = Integer.valueOf(getArguments()[2].toString());
+		debug = (boolean) getArguments()[3];
 		
+//		Inicializando variaveis e a execucao
+		initialAV = initialCV;
+		register("agents");
+		start();		
+	}
+
 	public void register(String serviceType)
 	{
 		dfd = new DFAgentDescription();
@@ -32,6 +48,14 @@ public class CoalitionAgent extends Agent {
     	}
 	}
 	
+	public void start()
+	{
+		coalitionValue = initialCV;
+		agentValue = initialAV;
+		faulty = 0;
+		addBehaviour(new CoalitionBehaviour(this));
+	}
+	
 	public void deregister()
 	{
 		try {  
@@ -42,39 +66,21 @@ public class CoalitionAgent extends Agent {
     	}
 	}
 	
-	public void start()
-	{
-		coalitionValue = initialCV;
-		agentValue = initialAV;
-		faulty = 0;
-		System.out.println(faulty);
-		addBehaviour(new CoalitionBehaviour(this));
-	}
-	
-	protected void setup()
-	{
-		number = Integer.valueOf(getLocalName().substring(getLocalName().length()-1));
-		initialCV = Double.parseDouble(getArguments()[0].toString());
-		initialAV = initialCV;
-		register("agents");
-//		register("all");
-//		faulty = Integer.valueOf(getArguments()[1].toString());
-		executions = Integer.valueOf(getArguments()[1].toString());
-		debug = (boolean) getArguments()[2];
-		start();		
-	}
-		
 	public double newCoalitionValue(double a)
 	{
 		return coalitionValue + a;
 	}
-		
+	
 	public void newAgentValue()
 	{
 		// agentValue + a;
 		agentValue *= 1.1;
 	}
 	
+	public long getTimeout() {
+		return timeout;
+	}
+
 	public void setCoalitionValue(double coalitionValue) {
 		this.coalitionValue = coalitionValue;
 	}
