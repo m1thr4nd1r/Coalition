@@ -22,41 +22,80 @@ import jade.wrapper.StaleProxyException;
 public class ManagerAgent extends Agent {
 
 	private boolean debug;
-	private int agents, executionAmount, faulty[], faultyAmount;
-	private long timeout;
+	private int agents, executionAmount, faulty[], faultyAmount,startAgent;
+	private long timeout, execTime, startTime;
 	private double value, a[], coalitionValue, b[];
 	private String coalition;
 	private Random rand;
 	private PrintWriter writer;
 	
-	public void beginWriting()
+	protected void setup()
 	{
-		String txt = "coalition;coalitionValue;";
-		for (int i = 0; i < agents; i++)
-			txt += "agent"+(i+1)+"-Begin;" + "agent"+(i+1)+"-End;";		
-		txt += "faultyAgent(s);\n";
-		
-		writeToFile(txt);
-	}
-	
-	public void writeToFile(String txt)
-	{
-		if (txt == "")
+//		Numero de Agentes,valor (a ser distribuido),qntExecuções,qntFalhas,agente inicial da coalizão, isDebug(opcional)
+		Object[] args = getArguments();
+		if (args != null && args.length > 3)
 		{
-			txt = coalition + ";";
-			txt += String.valueOf(coalitionValue).replace('.',',') + ";";
+//			Lendo variaveis do input
+			agents = Integer.parseInt((String) args[0]);
+			value = Double.valueOf((String) args[1]);			
+			executionAmount = Integer.parseInt((String) args[2]) + 1;
+			faultyAmount = Integer.parseInt((String) args[3]);
+			startAgent = Integer.parseInt((String) args[4]);
+			debug = (args.length > 5 && (args[5].toString().charAt(0) == 't' || args[5].toString().charAt(0) == 'T'))? true : false;
+			
+//			Inicializando variaveis
+			timeout = 120;
+			faulty = new int[agents];
+			rand = new Random();
+			register();			
+			selectInitialValues(value);
+			b = a.clone();
+			
+//			Inicializando o arquivo
+			try {
+				writer = new PrintWriter("Coalition.csv", "UTF-8");				
+			} catch (FileNotFoundException | UnsupportedEncodingException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}	
+			
+//			Criando variaveis necessarias a criacao de um novo agente (em um novo container)
+			Runtime rt = Runtime.instance();
+			Profile p = new ProfileImpl();
+			ContainerController agentContainer = rt.createAgentContainer(p);			
+
+//			Criando agentes
 			for (int i = 0; i < agents; i++)
 			{
-				txt += String.valueOf(a[i]).replace('.', ',')+";";
-				txt += String.valueOf(b[i]).replace('.', ',')+";";
-			}
-			for (int i = 0; i < agents; i++)
-				if (faulty[i] > 0)
-					txt += String.valueOf(i+1) + " ";
-			txt+=";\n";
+				try {
+					AgentController ac = agentContainer.createNewAgent("CoalitionAgent"+(i+1), "agents.CoalitionAgent", new Object[] { Double.valueOf(a[i]), executionAmount, 100, debug });
+					ac.start();
+				} catch (StaleProxyException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}		
+			
+//			Iniciando execucao
+			beginWriting();
+			startTime = System.currentTimeMillis();
+			start(true);
 		}
-		
-		writer.print(txt);
+	}
+	
+	private void register()
+	{
+		DFAgentDescription dfd = new DFAgentDescription();
+		ServiceDescription sd = new ServiceDescription();
+		sd.setName(getLocalName());
+		sd.setType("manager");		
+		dfd.addServices(sd);		
+		try {  
+	        DFService.register(this, dfd );  
+	    }
+	    catch (FIPAException fe) { 
+	    	fe.printStackTrace(); 
+    	}
 	}
 	
 	private void selectInitialValues(double v)
@@ -85,22 +124,36 @@ public class ManagerAgent extends Agent {
 		}
 	}
 	
-	private void register()
+	private void beginWriting()
 	{
-		DFAgentDescription dfd = new DFAgentDescription();
-		ServiceDescription sd = new ServiceDescription();
-		sd.setName(getLocalName());
-		sd.setType("manager");		
-		dfd.addServices(sd);		
-		try {  
-	        DFService.register(this, dfd );  
-	    }
-	    catch (FIPAException fe) { 
-	    	fe.printStackTrace(); 
-    	}
+		String txt = "executionTime(ms);coalition;coalitionValue;";
+		for (int i = 0; i < agents; i++)
+			txt += "agent"+(i+1)+"-Begin;" + "agent"+(i+1)+"-End;";		
+		txt += "faultyAgent(s);\n";
+		
+		writeToFile(txt);
+	}
+	
+	public void start(boolean trusty)
+	{
+		coalitionValue = 0;
+		selectFaulty(trusty);
+		
+		if (debug)
+		{
+			System.out.print("Trusty: ");
+			for (int i = 0; i < agents; i++)
+				System.out.print(faulty[i]+"("+(i+1)+") ");
+			System.out.println();
+		}
+		
+		addBehaviour(new ManagerBehaviour(this,agents,startAgent));
 	}
 	
 	private void selectFaulty(boolean trusty)
+	// 0 == sem falha
+	// 1 == falha no inicio
+	// 2 == falha depois de se juntar a coalizão
 	{
 		for (int i = 0; i < agents; i++)
 			faulty[i] = 0;
@@ -111,71 +164,50 @@ public class ManagerAgent extends Agent {
 			while (faultyleft > 0)
 			{
 				chosen = rand.nextInt(agents);
-				if (faulty[chosen] == 0)
+				if (faulty[chosen] == 0 && Integer.valueOf(startAgent) != chosen+1)
 				{
 					faulty[chosen] = 1;
 					faultyleft--;
 				}
 			}
+			faulty[3] = 2;
 		}
 	}
 	
-	public void start(boolean trusty)
+	public void writeToFile(String txt)
 	{
-		coalitionValue = 0;
-		selectFaulty(trusty);
-		
-		for (int i = 0; i < agents; i++)
-			System.out.print(faulty[i]);
-		System.out.println();
-		addBehaviour(new ManagerBehaviour(this,agents,trusty));
-	}
-	
-	protected void setup()
-	{
-		Object[] args = getArguments();
-		if (args != null && args.length > 3)
+		if (txt == "")
 		{
-//			Numero de Agentes,valor (a ser distribuido),qntExecuções,qntFalhas,isDebug(opcional)
-			agents = Integer.parseInt((String) args[0]);
-			value = Double.valueOf((String) args[1]);			
-			executionAmount = Integer.parseInt((String) args[2]) + 1;
-			faultyAmount = Integer.parseInt((String) args[3]);
-			timeout = 100;
-			debug = (args.length > 4 && (args[4].toString().charAt(0) == 't' || args[4].toString().charAt(0) == 'T'))? true : false;
-			faulty = new int[agents];
-			rand = new Random();
-			register();
-			
-			selectInitialValues(value);
-			b = a.clone();
-						
-			try {
-				writer = new PrintWriter("Coalition.csv", "UTF-8");				
-			} catch (FileNotFoundException | UnsupportedEncodingException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}	
-			
-//			Criando variaveis necessarias a criacao de um novo agente (em um novo container)
-			Runtime rt = Runtime.instance();
-			Profile p = new ProfileImpl();
-			ContainerController agentContainer = rt.createAgentContainer(p);			
-//			Criando agentes
+			txt = execTime + ";" + coalition + ";";
+			txt += String.valueOf(coalitionValue).replace('.',',') + ";";
 			for (int i = 0; i < agents; i++)
 			{
-				try {
-					AgentController ac = agentContainer.createNewAgent("CoalitionAgent"+(i+1), "agents.CoalitionAgent", new Object[] { Double.valueOf(a[i]), executionAmount, debug });
-					ac.start();
-				} catch (StaleProxyException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}		
-			
-			beginWriting();
-			start(true);
+				txt += String.valueOf(a[i]).replace('.', ',')+";";
+				txt += String.valueOf(b[i]).replace('.', ',')+";";
+			}
+			for (int i = 0; i < agents; i++)
+				if (faulty[i] > 0)
+					txt += String.valueOf(i+1) + " ";
+			txt+=";\n";
 		}
+		
+		writer.print(txt);
+	}
+	
+	protected void takeDown() 
+	{
+		writer.close();
+		System.out.println("Total Time: " + String.valueOf(System.currentTimeMillis() - startTime) + " ms (" + String.valueOf((System.currentTimeMillis() - startTime)/1000) + " s)");
+		try { DFService.deregister(this); }
+		catch (Exception e) {}
+	}
+	
+	private void printB() {
+		System.out.println("Printing Values");
+		// TODO Auto-generated method stub
+		for (int i = 0; i < b.length; i++)
+			System.out.print(String.valueOf(b[i]) + " ");
+		System.out.println(" | " + String.valueOf(coalitionValue));
 	}
 
 	public long getTimeOut()
@@ -225,18 +257,7 @@ public class ManagerAgent extends Agent {
 		return debug;
 	}
 	
-	protected void takeDown() 
-	{
-		writer.close();
-		try { DFService.deregister(this); }
-		catch (Exception e) {}
-	}
-	
-	public void printValues() {
-		System.out.println("Printing Values");
-		// TODO Auto-generated method stub
-		for (int i = 0; i < b.length; i++)
-			System.out.print(String.valueOf(b[i]) + " ");
-		System.out.println(" | " + String.valueOf(coalitionValue));
+	public void setExecTime(long l) {
+		execTime = l;		
 	}
 }
