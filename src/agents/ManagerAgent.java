@@ -166,11 +166,10 @@ public class ManagerAgent extends Agent {
 				chosen = rand.nextInt(agents);
 				if (faulty[chosen] == 0 && Integer.valueOf(startAgent) != chosen+1)
 				{
-					faulty[chosen] = 1;
+					faulty[chosen] = 2;
 					faultyleft--;
 				}
 			}
-			faulty[3] = 2;
 		}
 	}
 	
